@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import './motion.css'
 import { getSimulationState, restartSimulation, updateSimulationControl } from './services/simulationApi'
 import logo from './assets/Logo.png'
 
@@ -65,7 +66,7 @@ function Vegetation() {
   ]
   const grasses = [35, 86, 132, 626, 673, 724]
   const tree = (item, key) => <g key={key} className="road-tree" transform={`translate(${item.x} ${item.y}) scale(${item.s})`}><ellipse className="tree-shadow" cx="0" cy="20" rx="16" ry="6" /><rect className="tree-trunk" x="-3" y="5" width="6" height="18" rx="2" /><circle className="tree-crown crown-one" cx="-7" cy="3" r="10" /><circle className="tree-crown crown-two" cx="7" cy="2" r="11" /><circle className="tree-crown crown-three" cx="0" cy="-6" r="12" /></g>
-  return <g aria-label="Trees and roadside vegetation">{leftTrees.map(tree)}{rightTrees.map(tree)}{grasses.map((x, index) => <path key={`grass-${index}`} className="grass-tuft" d={`M${x} ${120 + (index % 3) * 110} q-8-13 0-23 q8 10 0 23 m2 0 q7-11 13-10 q-3 9-13 10`} />)}</g>
+  return <g aria-label="Trees and roadside vegetation">{leftTrees.map((item, index) => tree(item, `left-tree-${index}`))}{rightTrees.map((item, index) => tree(item, `right-tree-${index}`))}{grasses.map((x, index) => <path key={`grass-${index}`} className="grass-tuft" d={`M${x} ${120 + (index % 3) * 110} q-8-13 0-23 q8 10 0 23 m2 0 q7-11 13-10 q-3 9-13 10`} />)}</g>
 }
 
 function RoadCanvas({ running, telemetry, obstacles, setObstacles }) {
@@ -99,12 +100,8 @@ function RoadCanvas({ running, telemetry, obstacles, setObstacles }) {
   }
 
   const stripeY = Array.from({ length: 9 }, (_, index) => ((index * 75 + roadOffset) % 675) - 65)
-  const treeOffset = roadOffset * 0.7
-  const movingTrees = Array.from({ length: 12 }, (_, index) => ({
-    x: index % 2 === 0 ? [55, 105, 62, 112, 58][index % 5] : [705, 660, 706, 657, 708][index % 5],
-    y: ((index * 74 + treeOffset) % 650) - 45,
-    s: 0.74 + (index % 4) * 0.1,
-  }))
+  const treeOffset = roadOffset * 0.82
+  const obstacleSpeed = roadOffset * 1.12
 
   return <div className="twin-stage">
     <div className="stage-toolbar"><span><i className="legend-dot green" /> DRIVABLE ROAD</span><span><i className="legend-dot amber" /> CENTER LANE</span><span><i className="legend-dot red" /> DROP ZONE READY</span></div>
@@ -112,13 +109,23 @@ function RoadCanvas({ running, telemetry, obstacles, setObstacles }) {
       <svg ref={sceneRef} className="road-scene" viewBox="0 0 760 560" role="img" aria-label="Top-down straight road with a stationary blue ego vehicle, moving road markings, trees and draggable obstacles">
         <defs><linearGradient id="road" x1="0" y1="0" x2="1" y2="0"><stop stopColor="#1c2529" /><stop offset=".52" stopColor="#293338" /><stop offset="1" stopColor="#1b2529" /></linearGradient><linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#173221" /><stop offset="1" stopColor="#10271a" /></linearGradient></defs>
         <rect width="760" height="560" fill="url(#ground)" />
-        <g className="moving-environment" transform={`translate(0 ${treeOffset - 560})"><Vegetation /></g>
-        <g className="moving-environment"><g transform={`translate(0 ${treeOffset})`}><Vegetation /></g><g transform={`translate(0 ${treeOffset + 560})`}><Vegetation /></g></g>
-        <path className="road-surface" d="M150 0 H610 L570 560 H190 Z" fill="url(#road)" />
         <path className="road-shoulder" d="M150 0 H610 L570 560 H190 Z" />
+        <path className="road-surface" d="M150 0 H610 L570 560 H190 Z" fill="url(#road)" />
         <path className="road-edge" d="M175 0 L208 560 M585 0 L552 560" />
+
+        <g className="moving-environment" transform={`translate(0 ${treeOffset - 560})"><Vegetation /></g>
+        <g className="moving-environment" transform={`translate(0 ${treeOffset})"><Vegetation /></g>
+        <g className="moving-environment" transform={`translate(0 ${treeOffset + 560})"><Vegetation /></g>
+
         {stripeY.map((y) => <path key={`center-${y}`} className="road-centerline moving-line" d={`M380 ${y} V${y + 42}`} />)}
-        {obstacles.map((object) => <RoadObject key={object.id} object={object} onRemove={(id) => setObstacles((current) => current.filter((item) => item.id !== id))} />)}
+
+        <g className="moving-obstacles">
+          {obstacles.map((object) => {
+            const movedY = ((object.y + obstacleSpeed) % 650) - 45
+            return movedY > -55 && movedY < 615 ? <RoadObject key={object.id} object={{ ...object, y: movedY }} onRemove={(id) => setObstacles((current) => current.filter((item) => item.id !== id))} /> : null
+          })}
+        </g>
+
         <g className="ego-vehicle-blue ego-fixed" transform="translate(380 455)">
           <rect x="-25" y="-42" width="50" height="84" rx="12" /><rect className="ego-window" x="-16" y="-26" width="32" height="25" rx="5" /><path className="ego-beam" d="M-14-39h28" />
         </g>
@@ -147,12 +154,12 @@ function App() {
   const [obstacles, setObstacles] = useState([])
 
   useEffect(() => { getSimulationState().then((state) => { setRunning(state.running); setScenario(state.scenario); setSpeed(String(state.speedMultiplier)); if (state.telemetry) setTelemetry(state.telemetry) }) }, [])
-  const decision = useMemo(() => obstacles.length ? `INDRA is tracking ${obstacles.length} user-placed obstacle${obstacles.length > 1 ? 's' : ''} while keeping the ego vehicle visually fixed as the road moves beneath it.` : 'Clear straight road detected. INDRA is maintaining a centered path while the environment moves toward the fixed ego vehicle.', [obstacles.length])
+  const decision = useMemo(() => obstacles.length ? `INDRA is tracking ${obstacles.length} user-placed obstacle${obstacles.length > 1 ? 's' : ''} while keeping the ego vehicle fixed and advancing the road environment toward it.` : 'Clear straight road detected. INDRA is maintaining a centered path while the road environment moves toward the fixed ego vehicle.', [obstacles.length])
   const syncControl = (control) => { updateSimulationControl(control).then((state) => { if (state.telemetry) setTelemetry(state.telemetry) }) }
   const restart = () => { setTelemetry(initialTelemetry); setRunning(true); setScenario(scenarios[0]); setSpeed('1'); setObstacles([]); restartSimulation().then((state) => { if (state.telemetry) setTelemetry(state.telemetry) }) }
   return <main className="app-shell"><header className="app-header"><div className="brand-lockup"><img className="brand-mark" src={logo} alt="INDRA-DRIVE logo" /><div><h1>INDRA-<b>DRIVE</b></h1><p>Predictive Risk-Adaptive Path Planning <span>/</span> Unstructured Indian Roads</p></div></div><div className="header-status"><Pill>SYSTEM STATUS: ACTIVE</Pill><Pill>SIMULATION: {running ? 'RUNNING' : 'PAUSED'}</Pill><Pill tone="blue">MODE: INDRA ADAPTIVE</Pill></div></header>
-    <div className="dashboard-grid"><Controls running={running} setRunning={setRunning} scenario={scenario} setScenario={setScenario} speed={speed} setSpeed={setSpeed} restart={restart} syncControl={syncControl} /><section className="panel twin-panel"><Title eyebrow="Live environment / top-down view" title="Digital twin" action="30 FPS" /><RoadCanvas running={running} telemetry={telemetry} obstacles={obstacles} setObstacles={setObstacles} /><div className="twin-insight"><span className="alert-icon clear-icon">✓</span><div><strong className="clear-text">{obstacles.length ? 'OBSTACLE MONITORING' : 'ROAD CLEAR'}</strong><p>{obstacles.length ? `${obstacles.length} user-placed obstacle${obstacles.length > 1 ? 's are' : ' is'} active; ego vehicle remains fixed while the road environment moves.` : 'Ego vehicle remains fixed in the camera while road markings and vegetation move toward it.'}</p></div><span className="insight-time">{obstacles.length ? 'ACTIVE' : 'SAFE'}</span></div></section><VehicleStatus telemetry={telemetry} obstacles={obstacles} /></div>
-    <div className="lower-grid"><Performance /><section className="panel decision-panel"><Title eyebrow="Why did INDRA act?" title="Explainable decision" action="AUTO-LOGGED" /><div className="decision-copy"><div className="decision-tag"><span>01</span> DECISION TRACE</div><p>{decision}</p><div className="decision-facts"><div><span>PATHS EVALUATED</span><strong>1</strong></div><div><span>RISK REDUCTION</span><strong>100%</strong></div><div><span>WEIGHT PROFILE</span><strong>SAFETY <em>70%</em></strong></div></div><div className="action-callout"><span>↳</span><div><small>ACTION</small><strong>Keep ego vehicle fixed + advance environment</strong></div></div></div></section></div>
+    <div className="dashboard-grid"><Controls running={running} setRunning={setRunning} scenario={scenario} setScenario={setScenario} speed={speed} setSpeed={setSpeed} restart={restart} syncControl={syncControl} /><section className="panel twin-panel"><Title eyebrow="Live environment / top-down view" title="Digital twin" action="30 FPS" /><RoadCanvas running={running} telemetry={telemetry} obstacles={obstacles} setObstacles={setObstacles} /><div className="twin-insight"><span className="alert-icon clear-icon">✓</span><div><strong className={obstacles.length ? 'watch-text' : 'clear-text'}>{obstacles.length ? 'OBSTACLE MONITORING' : 'ROAD CLEAR'}</strong><p>{obstacles.length ? `${obstacles.length} user-placed obstacle${obstacles.length > 1 ? 's are' : ' is'} moving with the road environment; the ego vehicle remains fixed in the camera.` : 'Ego vehicle remains fixed in the camera while road markings, trees and vegetation move toward it.'}</p></div><span className="insight-time">{obstacles.length ? 'ACTIVE' : 'SAFE'}</span></div></section><VehicleStatus telemetry={telemetry} obstacles={obstacles} /></div>
+    <div className="lower-grid"><Performance /><section className="panel decision-panel"><Title eyebrow="Why did INDRA act?" title="Explainable decision" action="AUTO-LOGGED" /><div className="decision-copy"><div className="decision-tag"><span>01</span> DECISION TRACE</div><p>{decision}</p><div className="decision-facts"><div><span>PATHS EVALUATED</span><strong>1</strong></div><div><span>RISK REDUCTION</span><strong>100%</strong></div><div><span>WEIGHT PROFILE</span><strong>SAFETY <em>70%</em></strong></div></div><div className="action-callout"><span>↳</span><div><small>ACTION</small><strong>Keep ego vehicle fixed + advance road environment</strong></div></div></div></section></div>
     <footer className="app-footer"><span><b className="live-dot" /> SIMULATION ENGINE READY</span><span>SCENARIO: STRAIGHT ROAD &nbsp;·&nbsp; WEATHER: CLEAR &nbsp;·&nbsp; SEED: IDR-2048</span><strong>SAFETY FIRST <i>◆</i></strong></footer></main>
 }
 
