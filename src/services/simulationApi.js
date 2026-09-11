@@ -1,6 +1,7 @@
 const fallbackState = {
   running: true,
   speedMultiplier: 1,
+  vehicleSpeed: 38,
   scenario: 'Straight road',
   telemetry: { speed: 38, targetSpeed: 38, acceleration: 0, steering: 0, ttc: 8, collisionProbability: 0 },
 }
@@ -16,7 +17,7 @@ export async function getSimulationState() {
 }
 
 export async function updateSimulationControl(control) {
-  try { return await request('/api/simulation/control', { method: 'POST', body: JSON.stringify(control) }) } catch { return { ...fallbackState, ...control } }
+  try { return await request('/api/simulation/control', { method: 'POST', body: JSON.stringify(control) }) } catch { return { ...fallbackState, ...control, vehicleSpeed: Number.isFinite(Number(control.vehicleSpeed)) ? Math.max(0, Math.min(100, Number(control.vehicleSpeed))) : fallbackState.vehicleSpeed } }
 }
 
 export async function restartSimulation() {
