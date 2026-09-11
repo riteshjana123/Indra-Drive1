@@ -1,23 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import './motion.css'
+import './vehicle-overrides.css'
 import { getSimulationState, restartSimulation, updateSimulationControl } from './services/simulationApi'
 import logo from './assets/Logo.png'
 
 const initialTelemetry = { speed: 38, targetSpeed: 38, acceleration: 0, steering: 0, ttc: 8, collisionProbability: 0 }
 const scenarios = ['Straight road']
+const ROAD_LEFT = 150
+const ROAD_RIGHT = 610
+const ROAD_TOP = 0
+const ROAD_BOTTOM = 560
 const EGO_X = 380
 const EGO_Y = 455
-const EGO_HALF_WIDTH = 25
-const EGO_HALF_HEIGHT = 42
+const EGO_HALF_WIDTH = 22
+const EGO_HALF_HEIGHT = 40
 
 const obstacleTypes = [
-  { id: 'pedestrian', label: 'Pedestrian', tone: 'red', radius: 11 },
-  { id: 'bike', label: 'Bike', tone: 'amber', radius: 12 },
-  { id: 'car', label: 'Other car', tone: 'blue', radius: 16 },
-  { id: 'pothole', label: 'Pothole', tone: 'dark', radius: 13 },
-  { id: 'hazard', label: 'Hazard object', tone: 'yellow', radius: 14 },
-  { id: 'tree', label: 'Tree', tone: 'green', radius: 18 },
+  { id: 'pedestrian', label: 'Pedestrian', tone: 'red', radius: 8 },
+  { id: 'bike', label: 'Bike', tone: 'amber', radius: 9 },
+  { id: 'car', label: 'Other car', tone: 'blue', radius: 13 },
+  { id: 'pothole', label: 'Pothole', tone: 'dark', radius: 9 },
+  { id: 'hazard', label: 'Hazard object', tone: 'yellow', radius: 10 },
+  { id: 'tree', label: 'Tree', tone: 'green', radius: 12 },
 ]
 
 function Pill({ children, tone = 'green' }) {
@@ -30,12 +35,12 @@ function Title({ eyebrow, title, action }) {
 
 function ObstacleIcon({ type, small = false }) {
   const className = small ? 'obstacle-icon small' : 'obstacle-icon'
-  if (type === 'pedestrian') return <svg className={className} width={small ? 18 : 22} height={small ? 18 : 22} viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="6" r="3" /><path d="M16 10v9m0-6-6 5m6-5 6 5m-6 0-5 9m5-9 5 9" /></svg>
-  if (type === 'bike') return <svg className={className} width={small ? 18 : 22} height={small ? 18 : 22} viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="23" r="5" /><circle cx="24" cy="23" r="5" /><path d="M8 23l6-12 5 12m-7-7h7m-5-5 3 0m0 0 3 12M14 11l-4 0" /></svg>
-  if (type === 'car') return <svg className={className} width={small ? 18 : 24} height={small ? 18 : 24} viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="7" width="18" height="18" rx="4" /><path d="M10 7l2-4h8l2 4M10 20h3m6 0h3" /></svg>
-  if (type === 'pothole') return <svg className={className} width={small ? 18 : 22} height={small ? 18 : 22} viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="17" rx="11" ry="7" /><path d="M8 14l4 2m2-3 4 2m2-4 4 2m-9 7 4 1" /></svg>
-  if (type === 'tree') return <svg className={className} width={small ? 18 : 26} height={small ? 18 : 26} viewBox="0 0 32 32" aria-hidden="true"><rect x="14" y="18" width="4" height="10" rx="1" /><circle cx="10" cy="14" r="7" /><circle cx="20" cy="13" r="8" /><circle cx="16" cy="7" r="7" /></svg>
-  return <svg className={className} width={small ? 18 : 22} height={small ? 18 : 22} viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l12 22H4z" /><path d="M16 11v8m0 4v1" /></svg>
+  if (type === 'pedestrian') return <svg className={className} viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="6" r="3" /><path d="M16 10v9m0-6-6 5m6-5 6 5m-6 0-5 9m5-9 5 9" /></svg>
+  if (type === 'bike') return <svg className={className} viewBox="0 0 32 32" aria-hidden="true"><circle cx="8" cy="23" r="5" /><circle cx="24" cy="23" r="5" /><path d="M8 23l6-12 5 12m-7-7h7m-5-5 3 0m0 0 3 12M14 11l-4 0" /></svg>
+  if (type === 'car') return <svg className={className} viewBox="0 0 32 32" aria-hidden="true"><rect x="7" y="7" width="18" height="18" rx="4" /><path d="M10 7l2-4h8l2 4M10 20h3m6 0h3" /></svg>
+  if (type === 'pothole') return <svg className={className} viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="17" rx="11" ry="7" /><path d="M8 14l4 2m2-3 4 2m2-4 4 2m-9 7 4 1" /></svg>
+  if (type === 'tree') return <svg className={className} viewBox="0 0 32 32" aria-hidden="true"><rect x="14" y="18" width="4" height="10" rx="1" /><circle cx="10" cy="14" r="7" /><circle cx="20" cy="13" r="8" /><circle cx="16" cy="7" r="7" /></svg>
+  return <svg className={className} viewBox="0 0 32 32" aria-hidden="true"><path d="M16 4l12 22H4z" /><path d="M16 11v8m0 4v1" /></svg>
 }
 
 function Controls({ running, setRunning, scenario, setScenario, speed, setSpeed, restart, syncControl }) {
@@ -44,12 +49,12 @@ function Controls({ running, setRunning, scenario, setScenario, speed, setSpeed,
     <div className="control-section"><label htmlFor="scenario">Scenario type</label><select id="scenario" value={scenario} onChange={(event) => { setScenario(event.target.value); syncControl({ scenario: event.target.value }) }}>{scenarios.map((item) => <option key={item}>{item}</option>)}</select></div>
     <div className="control-section"><div className="label-row"><label>Traffic density</label><strong>LOW</strong></div><div className="density-bars" aria-label="Low traffic density"><b /><b /><b /></div><p className="muted">Road starts clear · add obstacles manually</p></div>
     <div className="control-section compact-grid"><div><span>WEATHER</span><strong>CLEAR</strong></div><div><span>VISIBILITY</span><strong>120 m</strong></div></div>
-    <div className="control-section"><div className="label-row"><label htmlFor="sim-speed">Simulation speed</label><strong>{speed}x</strong></div><input id="sim-speed" type="range" min="0.5" max="2" step="0.5" value={speed} onChange={(event) => { setSpeed(event.target.value); syncControl({ speedMultiplier: event.target.value }) }} /><div className="range-labels"><span>0.5x</span><span>1x</span><span>2x</span></div></div>
+    <div className="control-section speed-control"><div className="label-row"><label htmlFor="sim-speed">Vehicle speed</label><strong>{speed} km/h</strong></div><input id="sim-speed" type="range" min="0" max="100" step="1" value={speed} onChange={(event) => { const value = Number(event.target.value); setSpeed(value); syncControl({ vehicleSpeed: value }) }} /><div className="range-labels"><span>0</span><span>50</span><span>100 km/h</span></div><p className="speed-note">Maximum permitted simulation speed: 100 km/h</p></div>
     <div className="control-actions"><button className="button button-primary" type="button" onClick={() => { const nextRunning = !running; setRunning(nextRunning); syncControl({ running: nextRunning }) }}>{running ? '||  Pause' : '>  Resume'}</button><button className="button button-quiet" type="button" onClick={restart}>↻  Restart</button></div>
 
     <div className="obstacle-palette">
       <div className="obstacle-palette-head"><div><span className="eyebrow">Environment editor</span><h3>Obstacle</h3></div><span className="drag-hint">DRAG → ROAD</span></div>
-      <p className="palette-copy">Place realistic-sized objects on the road. A blocked lane can trigger a collision.</p>
+      <p className="palette-copy">Place realistic-sized objects anywhere on the road. Objects travel toward EGO-01 and leave the scene once passed.</p>
       <div className="obstacle-list">
         {obstacleTypes.map((item) => <div key={item.id} className={`obstacle-item obstacle-${item.tone}`} draggable onDragStart={(event) => { event.dataTransfer.setData('obstacleType', item.id); event.dataTransfer.effectAllowed = 'copy' }} title={`Drag ${item.label} onto the road`}><div className="obstacle-icon-wrap"><ObstacleIcon type={item.id} small /></div><div><strong>{item.label}</strong><span>Drag to place</span></div><b>⋮⋮</b></div>)}
       </div>
@@ -63,30 +68,42 @@ function Controls({ running, setRunning, scenario, setScenario, speed, setSpeed,
 function RoadObject({ object, onRemove, crashed }) {
   const type = obstacleTypes.find((item) => item.id === object.type) || obstacleTypes[0]
   return <g className={`road-obstacle obstacle-${object.type}${crashed ? ' collision-obstacle' : ''}`} transform={`translate(${object.x} ${object.y})`} onDoubleClick={(event) => { event.stopPropagation(); onRemove(object.id) }}>
-    <circle className="obstacle-halo" r={Math.max(14, type.radius + 5)} />
-    <g className="road-object-glyph" transform="translate(-12 -12)"><ObstacleIcon type={object.type} /></g>
-    <text y="27" textAnchor="middle">{type.label}</text>
+    <circle className="obstacle-halo" r={type.radius + 5} />
+    <g className="road-object-glyph"><ObstacleIcon type={object.type} /></g>
+    <text y={type.radius + 17} textAnchor="middle">{type.label}</text>
   </g>
 }
 
 function Vegetation() {
   const leftTrees = [
-    { x: 55, y: 70, s: 0.7 }, { x: 105, y: 155, s: 0.58 }, { x: 62, y: 260, s: 0.78 }, { x: 112, y: 365, s: 0.63 }, { x: 58, y: 470, s: 0.7 },
+    { x: 55, y: 70, s: 0.68 }, { x: 105, y: 155, s: 0.55 }, { x: 62, y: 260, s: 0.73 }, { x: 112, y: 365, s: 0.60 }, { x: 58, y: 470, s: 0.67 },
   ]
   const rightTrees = [
-    { x: 705, y: 88, s: 0.62 }, { x: 660, y: 180, s: 0.76 }, { x: 706, y: 285, s: 0.58 }, { x: 657, y: 390, s: 0.76 }, { x: 708, y: 485, s: 0.66 },
+    { x: 705, y: 88, s: 0.60 }, { x: 660, y: 180, s: 0.71 }, { x: 706, y: 285, s: 0.56 }, { x: 657, y: 390, s: 0.71 }, { x: 708, y: 485, s: 0.62 },
   ]
   const grasses = [35, 86, 132, 626, 673, 724]
   const tree = (item, key) => <g key={key} className="road-tree" transform={`translate(${item.x} ${item.y}) scale(${item.s})`}><ellipse className="tree-shadow" cx="0" cy="20" rx="16" ry="5" /><rect className="tree-trunk" x="-3" y="5" width="6" height="18" rx="2" /><circle className="tree-crown crown-one" cx="-7" cy="3" r="10" /><circle className="tree-crown crown-two" cx="7" cy="2" r="11" /><circle className="tree-crown crown-three" cx="0" cy="-6" r="12" /></g>
   return <g aria-label="Trees and roadside vegetation">{leftTrees.map((item, index) => tree(item, `left-tree-${index}`))}{rightTrees.map((item, index) => tree(item, `right-tree-${index}`))}{grasses.map((x, index) => <path key={`grass-${index}`} className="grass-tuft" d={`M${x} ${120 + (index % 3) * 110} q-8-13 0-23 q8 10 0 23 m2 0 q7-11 13-10 q-3 9-13 10`} />)}</g>
 }
 
-function RoadCanvas({ running, telemetry, obstacles, setObstacles, crashed, setCrashed }) {
+function EgoVehicle() {
+  return <g className="ego-vehicle-blue ego-realistic ego-fixed" transform={`translate(${EGO_X} ${EGO_Y})`} aria-label="Fixed blue ego vehicle">
+    <ellipse className="vehicle-shadow" cx="0" cy="43" rx="25" ry="8" />
+    <rect className="vehicle-body" x="-23" y="-41" width="46" height="82" rx="13" />
+    <path className="vehicle-hood" d="M-17-25 Q0-34 17-25 L15-10 Q0-4-15-10Z" />
+    <rect className="vehicle-cabin" x="-16" y="-4" width="32" height="32" rx="7" />
+    <path className="vehicle-windshield" d="M-12-1 Q0-7 12-1 L10 7 Q0 12-10 7Z" />
+    <path className="vehicle-rear-glass" d="M-10 16 Q0 21 10 16 L9 23 Q0 27-9 23Z" />
+    <circle className="wheel wheel-fl" cx="-25" cy="-25" r="7" /><circle className="wheel wheel-fr" cx="25" cy="-25" r="7" />
+    <circle className="wheel wheel-rl" cx="-25" cy="25" r="7" /><circle className="wheel wheel-rr" cx="25" cy="25" r="7" />
+    <circle className="headlight" cx="-14" cy="-34" r="2.3" /><circle className="headlight" cx="14" cy="-34" r="2.3" />
+    <circle className="tail-light" cx="-14" cy="34" r="2.1" /><circle className="tail-light" cx="14" cy="34" r="2.1" />
+  </g>
+}
+
+function RoadCanvas({ running, speed, obstacles, setObstacles, crashed, setCrashed }) {
   const sceneRef = useRef(null)
   const [roadOffset, setRoadOffset] = useState(0)
-
-  const obstacleRadius = (type) => obstacleTypes.find((item) => item.id === type)?.radius ?? 12
-  const getMovedY = (object, offset = roadOffset) => ((object.y + offset * 1.12) % 650) - 45
 
   useEffect(() => {
     if (!running || crashed) return undefined
@@ -95,90 +112,96 @@ function RoadCanvas({ running, telemetry, obstacles, setObstacles, crashed, setC
     const tick = (now) => {
       const delta = Math.min(80, now - last)
       last = now
-      setRoadOffset((current) => {
-        const next = (current + delta * (0.018 + Number(telemetry.speed) * 0.0015)) % 560
-        const hit = obstacles.some((object) => {
-          const y = getMovedY(object, next)
-          const dx = Math.abs(Number(object.x) - EGO_X)
-          const dy = Math.abs(y - EGO_Y)
-          return dx < EGO_HALF_WIDTH + obstacleRadius(object.type) && dy < EGO_HALF_HEIGHT + obstacleRadius(object.type)
-        })
-        if (hit) setCrashed(true)
-        return next
-      })
+      const nextOffset = roadOffset + delta * (0.012 + Number(speed) * 0.0024)
+
+      let didCrash = false
+      const surviving = []
+      for (const object of obstacles) {
+        const movedY = Number(object.y) + nextOffset
+        const type = obstacleTypes.find((item) => item.id === object.type) || obstacleTypes[0]
+        if (movedY <= ROAD_BOTTOM + 45) surviving.push(object)
+        const dx = Math.abs(Number(object.x) - EGO_X)
+        const dy = Math.abs(movedY - EGO_Y)
+        if (dx < EGO_HALF_WIDTH + type.radius && dy < EGO_HALF_HEIGHT + type.radius) didCrash = true
+      }
+
+      setRoadOffset(nextOffset)
+      if (surviving.length !== obstacles.length) setObstacles(surviving)
+      if (didCrash) setCrashed(true)
       frame = window.requestAnimationFrame(tick)
     }
     frame = window.requestAnimationFrame(tick)
     return () => window.cancelAnimationFrame(frame)
-  }, [running, crashed, telemetry.speed, obstacles])
+  }, [running, crashed, speed, obstacles, roadOffset])
 
   const dropObstacle = (event) => {
     event.preventDefault()
     const type = event.dataTransfer.getData('obstacleType')
     if (!type || !sceneRef.current || crashed) return
     const rect = sceneRef.current.getBoundingClientRect()
-    const x = ((event.clientX - rect.left) / rect.width) * 760
-    const y = ((event.clientY - rect.top) / rect.height) * 560
-    const clampedX = Math.max(205, Math.min(555, x))
-    const clampedY = Math.max(25, Math.min(535, y))
-    setObstacles((current) => [...current, { id: `${type}-${Date.now()}`, type, x: clampedX, y: clampedY }])
+    const rawX = ((event.clientX - rect.left) / rect.width) * 760
+    const rawY = ((event.clientY - rect.top) / rect.height) * 560
+    const x = Math.max(ROAD_LEFT + 8, Math.min(ROAD_RIGHT - 8, rawX))
+    const y = Math.max(ROAD_TOP + 8, Math.min(ROAD_BOTTOM - 8, rawY))
+    setObstacles((current) => [...current, { id: `${type}-${Date.now()}-${Math.random().toString(16).slice(2)}`, type, x, y }])
   }
 
-  const stripeY = Array.from({ length: 9 }, (_, index) => ((index * 75 + roadOffset) % 675) - 65)
-  const treeOffset = roadOffset * 0.82
+  const stripeY = Array.from({ length: 9 }, (_, index) => ((index * 78 + roadOffset) % 650) - 70)
+  const treeOffset = roadOffset * 0.9
+  const movingVegetation = (offset) => ((offset % 620) + 620) % 620
 
   return <div className={`twin-stage ${crashed ? 'stage-crashed' : ''}`}>
-    <div className="stage-toolbar"><span><i className="legend-dot green" /> DRIVABLE ROAD</span><span><i className="legend-dot amber" /> CENTER LANE</span><span className={crashed ? 'crash-toolbar' : ''}><i className="legend-dot red" /> {crashed ? 'COLLISION DETECTED' : 'DROP ZONE READY'}</span></div>
+    <div className="stage-toolbar"><span><i className="legend-dot green" /> DRIVABLE ROAD</span><span><i className="legend-dot amber" /> CENTER LANE</span><span className={crashed ? 'crash-toolbar' : ''}><i className="legend-dot red" /> {crashed ? 'COLLISION DETECTED' : 'DROP ANYWHERE ON ROAD'}</span></div>
     <div className="drop-area" onDragOver={(event) => event.preventDefault()} onDrop={dropObstacle}>
-      <svg ref={sceneRef} className="road-scene" viewBox="0 0 760 560" role="img" aria-label="Top-down road with fixed blue ego vehicle, moving road environment, trees and realistic-sized obstacles">
+      <svg ref={sceneRef} className="road-scene" viewBox="0 0 760 560" role="img" aria-label="Top-down perfectly straight road with fixed realistic blue ego vehicle, moving environment and draggable obstacles">
         <defs>
           <linearGradient id="road" x1="0" y1="0" x2="1" y2="0"><stop stopColor="#1b2428" /><stop offset=".5" stopColor="#293237" /><stop offset="1" stopColor="#1a2327" /></linearGradient>
           <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#173221" /><stop offset="1" stopColor="#10271a" /></linearGradient>
+          <filter id="carGlow"><feGaussianBlur stdDeviation="3" /></filter>
         </defs>
         <rect width="760" height="560" fill="url(#ground)" />
-        <path className="road-shoulder" d="M150 0 H610 L570 560 H190 Z" />
-        <path className="road-surface" d="M150 0 H610 L570 560 H190 Z" fill="url(#road)" />
-        <path className="road-edge" d="M175 0 L208 560 M585 0 L552 560" />
+        <rect x={ROAD_LEFT} y="0" width={ROAD_RIGHT - ROAD_LEFT} height="560" fill="url(#road)" className="road-surface" />
+        <rect x={ROAD_LEFT - 2} y="0" width="2" height="560" className="road-edge" />
+        <rect x={ROAD_RIGHT} y="0" width="2" height="560" className="road-edge" />
 
-        <g className="moving-environment" transform={`translate(0 ${treeOffset - 560})`}><Vegetation /></g>
-        <g className="moving-environment" transform={`translate(0 ${treeOffset})`}><Vegetation /></g>
-        <g className="moving-environment" transform={`translate(0 ${treeOffset + 560})`}><Vegetation /></g>
+        <g className="moving-environment" transform={`translate(0 ${-560 + movingVegetation(treeOffset)})`}><Vegetation /></g>
+        <g className="moving-environment" transform={`translate(0 ${movingVegetation(treeOffset)})`}><Vegetation /></g>
+        <g className="moving-environment" transform={`translate(0 ${560 + movingVegetation(treeOffset)})`}><Vegetation /></g>
 
-        {stripeY.map((y) => <path key={`center-${y}`} className="road-centerline moving-line" d={`M380 ${y} V${y + 42}`} />)}
+        {stripeY.map((y) => <rect key={`center-${y}`} x="378" y={y} width="4" height="42" rx="2" className="road-centerline moving-line" />)}
 
         {obstacles.map((object) => {
-          const movedY = getMovedY(object)
-          return movedY > -55 && movedY < 615 ? <RoadObject key={object.id} object={{ ...object, y: movedY }} crashed={crashed} onRemove={(id) => setObstacles((current) => current.filter((item) => item.id !== id))} /> : null
+          const movedY = Number(object.y) + roadOffset
+          if (movedY < -55 || movedY > ROAD_BOTTOM + 45) return null
+          return <RoadObject key={object.id} object={{ ...object, y: movedY }} crashed={crashed} onRemove={(id) => setObstacles((current) => current.filter((item) => item.id !== id))} />
         })}
 
-        <g className="ego-vehicle-blue ego-fixed" transform={`translate(${EGO_X} ${EGO_Y})`}>
-          <rect x="-25" y="-42" width="50" height="84" rx="12" /><rect className="ego-window" x="-16" y="-26" width="32" height="25" rx="5" /><path className="ego-beam" d="M-14-39h28" />
-        </g>
+        <EgoVehicle />
 
-        {crashed && <g className="collision-marker" transform={`translate(${EGO_X} ${EGO_Y})`}><circle r="39" /><path d="M-11-11l22 22m0-22-22 22" /></g>}
+        {crashed && <g className="collision-marker" transform={`translate(${EGO_X} ${EGO_Y})`}><circle r="36" /><path d="M-10-10l20 20m0-20-20 20" /></g>}
       </svg>
-      <div className="drop-overlay"><span>{crashed ? 'SIMULATION STOPPED — RESTART TO CONTINUE' : 'DROP OBSTACLE ON ROAD'}</span></div>
+      <div className="drop-overlay"><span>{crashed ? 'SIMULATION STOPPED — RESTART TO CONTINUE' : 'DROP OBSTACLE ANYWHERE ON ROAD'}</span></div>
       {crashed && <div className="collision-banner"><strong>COLLISION</strong><span>The ego vehicle reached a placed obstacle.</span></div>}
     </div>
-    <div className="twin-footer"><span><b className="live-dot" /> DIGITAL TWIN / {crashed ? 'COLLISION STATE' : 'ROAD MOTION'}</span><span>INDRA PATH <b className="path-line" /> {telemetry.targetSpeed} km/h TARGET</span></div>
+    <div className="twin-footer"><span><b className="live-dot" /> DIGITAL TWIN / {crashed ? 'COLLISION STATE' : 'ROAD MOTION'}</span><span>INDRA PATH <b className="path-line" /> {speed} km/h</span></div>
   </div>
 }
 
 function VehicleStatus({ telemetry, obstacles, crashed }) {
   const items = [['CURRENT SPEED', `${Math.round(telemetry.speed)} km/h`, 'neutral'], ['TARGET SPEED', `${telemetry.targetSpeed} km/h`, 'teal'], ['ACCELERATION', `${telemetry.acceleration} m/s²`, 'amber'], ['STEERING ANGLE', `${telemetry.steering}°`, 'neutral']]
-  return <aside className="panel status-panel"><Title eyebrow="Telemetry" title="Vehicle status" action="EGO-01" /><div className="telemetry-grid">{items.map(([label, value, tone]) => <div className="telemetry-card" key={label}><span>{label}</span><strong className={`value-${tone}`}>{value}</strong></div>)}</div><div className="status-row"><span>Brake status</span><strong className={`brake-status ${crashed ? 'brake-danger' : 'clear-brake'}`}><i /> {crashed ? 'LOCKED' : 'RELEASED'}</strong></div><div className="risk-readout"><div><span>TIME TO COLLISION</span><strong className={crashed ? 'danger-value' : ''}>{crashed ? '0.0' : telemetry.ttc.toFixed(1)}<small> sec</small></strong></div><div><span>COLLISION PROBABILITY</span><strong className={crashed ? 'danger-value' : ''}>{crashed ? '100' : Math.round(telemetry.collisionProbability)}<small>%</small></strong></div></div><div className="risk-meter"><span className={crashed ? 'risk-full' : ''} style={{ width: `${crashed ? 100 : telemetry.collisionProbability}%` }} /></div><div className="current-risk"><span>Current risk</span><strong className={crashed ? 'collision-risk' : obstacles.length ? 'watch-risk' : 'clear-risk'}><i /> {crashed ? 'COLLISION' : obstacles.length ? 'MONITOR' : 'CLEAR'}</strong></div><div className="selected-path"><span>Selected path</span><strong>Center lane <em>INDRA</em></strong></div><div className="status-obstacles"><span>Placed obstacles</span><strong>{obstacles.length}</strong></div></aside>
+  return <aside className="panel status-panel"><Title eyebrow="Telemetry" title="Vehicle status" action="EGO-01" /><div className="telemetry-grid">{items.map(([label, value, tone]) => <div className="telemetry-card" key={label}><span>{label}</span><strong className={`value-${tone}`}>{value}</strong></div>)}</div><div className="status-row"><span>Brake status</span><strong className={`brake-status ${crashed ? 'brake-danger' : 'clear-brake'}`}><i /> {crashed ? 'LOCKED' : 'RELEASED'}</strong></div><div className="risk-readout"><div><span>TIME TO COLLISION</span><strong className={crashed ? 'danger-value' : ''}>{crashed ? '0.0' : telemetry.ttc.toFixed(1)}<small> sec</small></strong></div><div><span>COLLISION PROBABILITY</span><strong className={crashed ? 'danger-value' : ''}>{crashed ? '100' : Math.round(telemetry.collisionProbability)}<small>%</small></strong></div></div><div className="risk-meter"><span className={crashed ? 'risk-full' : ''} style={{ width: `${crashed ? 100 : telemetry.collisionProbability}%` }} /></div><div className="current-risk"><span>Current risk</span><strong className={crashed ? 'collision-risk' : obstacles.length ? 'watch-risk' : 'clear-risk'}><i /> {crashed ? 'COLLISION' : obstacles.length ? 'MONITOR' : 'CLEAR'}</strong></div><div className="selected-path"><span>Selected path</span><strong>Center lane <em>INDRA</em></strong></div><div className="status-obstacles"><span>Active obstacles</span><strong>{obstacles.length}</strong></div></aside>
 }
 
-function Performance() {
-  const rows = [['Collisions', '0', '0', '0'], ['Minimum TTC', '8.0 s', '8.0 s', '8.0 s'], ['Average speed', '38 km/h', '38 km/h', '38 km/h'], ['Path efficiency', '100%', '100%', '100%'], ['Comfort score', '94', '94', '96'], ['Emergency braking', '0', '0', '0']]
-  return <section className="panel performance-panel"><Title eyebrow="Benchmark run / interactive road" title="Performance comparison" action="3 CONTROLLERS" /><div className="comparison-layout"><table><thead><tr><th>METRIC</th><th>BASELINE</th><th>REACTIVE</th><th className="indra-heading">INDRA</th></tr></thead><tbody>{rows.map(([metric, baseline, reactive, indra]) => <tr key={metric}><td>{metric}</td><td>{baseline}</td><td>{reactive}</td><td className="best">{indra}<span>BEST</span></td></tr>)}</tbody></table><div className="chart"><div className="chart-caption"><span>SAFETY SCORE</span><strong>INDRA <b>96</b></strong></div><div className="bars"><div style={{ height: '78%' }}><i>94</i><span>BASE</span></div><div style={{ height: '78%' }}><i>94</i><span>REACTIVE</span></div><div className="bar-indra" style={{ height: '92%' }}><i>96</i><span>INDRA</span></div></div></div></div></section>
+function Performance({ speed, crashed }) {
+  const rows = [['Collisions', crashed ? '1' : '0', crashed ? '1' : '0', crashed ? '1' : '0'], ['Minimum TTC', crashed ? '0.0 s' : '8.0 s', crashed ? '0.0 s' : '8.0 s', crashed ? '0.0 s' : '8.0 s'], ['Average speed', `${Math.round(speed)} km/h`, `${Math.round(speed)} km/h`, `${Math.round(speed)} km/h`], ['Path efficiency', crashed ? '0%' : '100%', crashed ? '0%' : '100%', crashed ? '0%' : '100%'], ['Comfort score', crashed ? '0' : '94', crashed ? '0' : '94', crashed ? '0' : '96'], ['Emergency braking', crashed ? '1' : '0', crashed ? '1' : '0', crashed ? '1' : '0']]
+  return <section className="panel performance-panel"><Title eyebrow="Benchmark run / interactive road" title="Performance comparison" action="3 CONTROLLERS" /><div className="comparison-layout"><table><thead><tr><th>METRIC</th><th>BASELINE</th><th>REACTIVE</th><th className="indra-heading">INDRA</th></tr></thead><tbody>{rows.map(([metric, baseline, reactive, indra]) => <tr key={metric}><td>{metric}</td><td>{baseline}</td><td>{reactive}</td><td className="best">{indra}<span>{crashed ? 'FAULT' : 'BEST'}</span></td></tr>)}</tbody></table><div className="chart"><div className="chart-caption"><span>SAFETY SCORE</span><strong>INDRA <b>{crashed ? 0 : 96}</b></strong></div><div className="bars"><div style={{ height: crashed ? '10%' : '78%' }}><i>{crashed ? 0 : 94}</i><span>BASE</span></div><div style={{ height: crashed ? '10%' : '78%' }}><i>{crashed ? 0 : 94}</i><span>REACTIVE</span></div><div className="bar-indra" style={{ height: crashed ? '10%' : '92%' }}><i>{crashed ? 0 : 96}</i><span>INDRA</span></div></div></div></div></section>
 }
 
 function App() {
   const [running, setRunning] = useState(true)
   const [scenario, setScenario] = useState(scenarios[0])
-  const [speed, setSpeed] = useState('1')
-  const [telemetry, setTelemetry] = useState(initialTelemetry)
+  const [speed, setSpeed] = useState(38)
+  const [telemetry, setTelemetry] = useState({ ...initialTelemetry })
   const [obstacles, setObstacles] = useState([])
   const [crashed, setCrashed] = useState(false)
 
@@ -186,24 +209,43 @@ function App() {
     getSimulationState().then((state) => {
       setRunning(state.running)
       setScenario(state.scenario)
-      setSpeed(String(state.speedMultiplier))
+      const serverSpeed = Number(state.vehicleSpeed ?? state.telemetry?.targetSpeed ?? initialTelemetry.targetSpeed)
+      setSpeed(Math.max(0, Math.min(100, Number.isFinite(serverSpeed) ? serverSpeed : initialTelemetry.targetSpeed)))
       if (state.telemetry) setTelemetry(state.telemetry)
     })
   }, [])
 
+  useEffect(() => {
+    setTelemetry((current) => ({ ...current, speed, targetSpeed: speed, acceleration: 0, steering: 0 }))
+  }, [speed])
+
   const decision = useMemo(() => crashed
     ? 'Collision detected. INDRA stopped the simulation because a placed road object entered the ego vehicle collision envelope.'
     : obstacles.length
-      ? `INDRA is tracking ${obstacles.length} user-placed obstacle${obstacles.length > 1 ? 's' : ''} while keeping the ego vehicle fixed and advancing the road environment toward it.`
-      : 'Clear straight road detected. INDRA is maintaining a centered path while the road environment moves toward the fixed ego vehicle.', [crashed, obstacles.length])
+      ? `INDRA is tracking ${obstacles.length} active road object${obstacles.length > 1 ? 's' : ''} while keeping EGO-01 fixed and advancing the environment toward it.`
+      : 'Clear straight road detected. EGO-01 is fixed in the camera while the road environment moves toward it.', [crashed, obstacles.length])
 
-  const syncControl = (control) => { updateSimulationControl(control).then((state) => { if (state.telemetry) setTelemetry(state.telemetry) }) }
-  const restart = () => { setTelemetry(initialTelemetry); setRunning(true); setScenario(scenarios[0]); setSpeed('1'); setObstacles([]); setCrashed(false); restartSimulation().then((state) => { if (state.telemetry) setTelemetry(state.telemetry) }) }
+  const syncControl = (control) => {
+    updateSimulationControl(control).then((state) => {
+      if (state.telemetry) setTelemetry(state.telemetry)
+      if (typeof state.vehicleSpeed === 'number') setSpeed(state.vehicleSpeed)
+    }).catch(() => undefined)
+  }
 
-  return <main className="app-shell"><header className="app-header"><div className="brand-lockup"><img className="brand-mark" src={logo} alt="INDRA-DRIVE logo" /><div><h1>INDRA-<b>DRIVE</b></h1><p>Predictive Risk-Adaptive Path Planning <span>/</span> Unstructured Indian Roads</p></div></div><div className="header-status"><Pill>SYSTEM STATUS: ACTIVE</Pill><Pill>SIMULATION: {crashed ? 'STOPPED' : running ? 'RUNNING' : 'PAUSED'}</Pill><Pill tone="blue">MODE: INDRA ADAPTIVE</Pill></div></header>
-    <div className="dashboard-grid"><Controls running={running && !crashed} setRunning={(value) => { if (!crashed) setRunning(value) }} scenario={scenario} setScenario={setScenario} speed={speed} setSpeed={setSpeed} restart={restart} syncControl={syncControl} /><section className="panel twin-panel"><Title eyebrow="Live environment / top-down view" title="Digital twin" action="30 FPS" /><RoadCanvas running={running} telemetry={telemetry} obstacles={obstacles} setObstacles={setObstacles} crashed={crashed} setCrashed={setCrashed} /><div className="twin-insight"><span className={`alert-icon ${crashed ? 'collision-icon' : obstacles.length ? 'watch-icon' : 'clear-icon'}`}>{crashed ? '!' : obstacles.length ? '!' : '✓'}</span><div><strong className={crashed ? 'collision-text' : obstacles.length ? 'watch-text' : 'clear-text'}>{crashed ? 'COLLISION DETECTED' : obstacles.length ? 'OBSTACLE MONITORING' : 'ROAD CLEAR'}</strong><p>{crashed ? 'Simulation stopped at impact. Restart to run the scenario again.' : obstacles.length ? `${obstacles.length} placed object${obstacles.length > 1 ? 's are' : ' is'} moving with the road environment.` : 'Ego vehicle remains fixed in the camera while road markings, trees and vegetation move toward it.'}</p></div><span className="insight-time">{crashed ? 'STOP' : obstacles.length ? 'ACTIVE' : 'SAFE'}</span></div></section><VehicleStatus telemetry={telemetry} obstacles={obstacles} crashed={crashed} /></div>
-    <div className="lower-grid"><Performance /><section className="panel decision-panel"><Title eyebrow="Why did INDRA act?" title="Explainable decision" action="AUTO-LOGGED" /><div className="decision-copy"><div className="decision-tag"><span>01</span> DECISION TRACE</div><p>{decision}</p><div className="decision-facts"><div><span>PATHS EVALUATED</span><strong>{crashed ? '0' : '1'}</strong></div><div><span>RISK REDUCTION</span><strong>{crashed ? '0%' : '100%'}</strong></div><div><span>WEIGHT PROFILE</span><strong>SAFETY <em>70%</em></strong></div></div><div className="action-callout"><span>↳</span><div><small>ACTION</small><strong>{crashed ? 'Stop vehicle + log collision' : 'Keep ego vehicle fixed + advance road environment'}</strong></div></div></div></section></div>
-    <footer className="app-footer"><span><b className="live-dot" /> SIMULATION ENGINE READY</span><span>SCENARIO: STRAIGHT ROAD &nbsp;·&nbsp; WEATHER: CLEAR &nbsp;·&nbsp; SEED: IDR-2048</span><strong>SAFETY FIRST <i>◆</i></strong></footer></main>
+  const restart = () => {
+    setTelemetry({ ...initialTelemetry, speed: 38, targetSpeed: 38 })
+    setRunning(true)
+    setScenario(scenarios[0])
+    setSpeed(38)
+    setObstacles([])
+    setCrashed(false)
+    restartSimulation().then((state) => { if (state.telemetry) setTelemetry(state.telemetry) }).catch(() => undefined)
+  }
+
+  return <main className="app-shell"><header className="app-header"><div className="brand-lockup"><img className="brand-mark" src={logo} alt="INDRA-DRIVE logo" /><div><h1>INDRA-<b>DRIVE</b></h1><p>Predictive Risk-Adaptive Path Planning <span>/</span> Realistic Road Digital Twin</p></div></div><div className="header-status"><Pill>SYSTEM STATUS: ACTIVE</Pill><Pill>SIMULATION: {crashed ? 'STOPPED' : running ? 'RUNNING' : 'PAUSED'}</Pill><Pill tone="blue">MODE: INDRA ADAPTIVE</Pill></div></header>
+    <div className="dashboard-grid"><Controls running={running && !crashed} setRunning={(value) => { if (!crashed) setRunning(value) }} scenario={scenario} setScenario={setScenario} speed={speed} setSpeed={setSpeed} restart={restart} syncControl={syncControl} /><section className="panel twin-panel"><Title eyebrow="Live environment / top-down view" title="Digital twin" action="30 FPS" /><RoadCanvas running={running} speed={speed} telemetry={telemetry} obstacles={obstacles} setObstacles={setObstacles} crashed={crashed} setCrashed={setCrashed} /><div className="twin-insight"><span className={`alert-icon ${crashed ? 'collision-icon' : obstacles.length ? 'watch-icon' : 'clear-icon'}`}>{crashed ? '!' : obstacles.length ? '!' : '✓'}</span><div><strong className={crashed ? 'collision-text' : obstacles.length ? 'watch-text' : 'clear-text'}>{crashed ? 'COLLISION DETECTED' : obstacles.length ? 'OBSTACLE MONITORING' : 'ROAD CLEAR'}</strong><p>{crashed ? 'Simulation stopped at impact. Restart to run the scenario again.' : obstacles.length ? `${obstacles.length} placed object${obstacles.length > 1 ? 's are' : ' is'} moving forward with the road environment.` : 'EGO-01 remains fixed while the straight road, lane markings, trees and vegetation move toward it.'}</p></div><span className="insight-time">{crashed ? 'STOP' : obstacles.length ? 'ACTIVE' : 'SAFE'}</span></div></section><VehicleStatus telemetry={telemetry} obstacles={obstacles} crashed={crashed} /></div>
+    <div className="lower-grid"><Performance speed={speed} crashed={crashed} /><section className="panel decision-panel"><Title eyebrow="Why did INDRA act?" title="Explainable decision" action="AUTO-LOGGED" /><div className="decision-copy"><div className="decision-tag"><span>01</span> DECISION TRACE</div><p>{decision}</p><div className="decision-facts"><div><span>PATHS EVALUATED</span><strong>{crashed ? '0' : '1'}</strong></div><div><span>RISK REDUCTION</span><strong>{crashed ? '0%' : '100%'}</strong></div><div><span>WEIGHT PROFILE</span><strong>SAFETY <em>70%</em></strong></div></div><div className="action-callout"><span>↳</span><div><small>ACTION</small><strong>{crashed ? 'Stop vehicle + log collision' : `Drive at ${speed} km/h + keep EGO-01 fixed in camera`}</strong></div></div></div></section></div>
+    <footer className="app-footer"><span><b className="live-dot" /> SIMULATION ENGINE READY</span><span>SCENARIO: STRAIGHT ROAD &nbsp;·&nbsp; WEATHER: CLEAR &nbsp;·&nbsp; SPEED LIMIT: 100 km/h</span><strong>SAFETY FIRST <i>◆</i></strong></footer></main>
 }
 
 export default App
