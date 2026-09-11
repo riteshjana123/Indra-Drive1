@@ -1,4 +1,5 @@
 import './prototype-dashboard.css'
+import { setAutonomySafetyGate } from './autonomy-safety-gate.js'
 
 const API = '/api'
 let mounted = false
@@ -28,7 +29,18 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;
 const componentStatus = (components, key) => components?.[key]?.status || 'UNKNOWN'
 const statusClass = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
 
+function syncSafetyGate(state) {
+  const mode = state?.mode || 'SAFE'
+  const allowed = Boolean(state?.propulsionEnabled) && mode === 'READY'
+  const reasons = Array.isArray(state?.safetyReasons) ? state.safetyReasons : []
+  setAutonomySafetyGate({
+    allowed,
+    reason: allowed ? 'SAFETY GATES CLEAR' : (reasons[0] || 'SAFETY GATE ACTIVE'),
+  })
+}
+
 function render(state, panel) {
+  syncSafetyGate(state)
   const reasons = Array.isArray(state?.safetyReasons) ? state.safetyReasons : []
   const mode = state?.mode || 'SAFE'
   const propulsion = Boolean(state?.propulsionEnabled)
@@ -61,7 +73,7 @@ function render(state, panel) {
       <div class="prototype-controls"><div class="prototype-section-heading"><span class="eyebrow">Prototype controls</span><span>TEST MODE</span></div><div class="prototype-button-row"><button type="button" data-proto="charger" class="proto-control-button">${chargerConnected ? 'Disconnect charger' : 'Connect charger'}</button><button type="button" data-proto="estop" class="proto-control-button proto-danger">${state?.estop ? 'Release E-stop' : 'Trigger E-stop'}</button></div><div class="prototype-button-row"><button type="button" data-proto="sensor" class="proto-control-button">${state?.sensorsHealthy === false ? 'Restore sensors' : 'Simulate sensor fault'}</button><button type="button" data-proto="compute" class="proto-control-button">${state?.computeHealthy === false ? 'Restore compute' : 'Simulate compute fault'}</button><button type="button" data-proto="actuator" class="proto-control-button">${state?.actuatorHealthy === false ? 'Restore actuators' : 'Simulate actuator fault'}</button></div><label class="prototype-battery-control"><span>TEST BATTERY SOC</span><input data-proto-battery type="range" min="0" max="100" step="1" value="${batterySoc}"/><strong>${batterySoc}%</strong></label></div>
     </div>
     <div class="prototype-architecture"><span>BATTERY</span><b>→</b><span>BMS</span><b>→</b><span>POWER / CHARGER</span><b>→</b><span>SAFETY GATE</span><b>→</b><span>COMPUTE + SENSORS</span><b>→</b><span>ACTUATORS</span></div>
-    <div class="prototype-footnote">Software simulation of the prototype power/safety layer. High-voltage charging hardware must remain physically protected and interlocked.</div>
+    <div class="prototype-footnote">AUTONOMY CONTROL IS GATED BY PROPULSION SAFETY. Charger connection, E-stop, low battery, watchdog, sensor, compute or actuator faults inhibit autonomous motion.</div>
   `
 
   panel.querySelector('[data-proto="charger"]')?.addEventListener('click', async () => { await postControl({ chargerConnected: !state.chargerConnected }).then(() => refresh(panel)).catch(() => {}) })
@@ -72,7 +84,7 @@ function render(state, panel) {
   panel.querySelector('[data-proto-battery]')?.addEventListener('input', async event => {
     const value = Number(event.target.value)
     event.target.nextElementSibling.textContent = `${value}%`
-    await postControl({ batterySoc: value }).catch(() => {})
+    await postControl({ batterySoc: value }).then(() => refresh(panel)).catch(() => {})
   })
 }
 
@@ -83,7 +95,8 @@ async function refresh(panel) {
     render(state, panel)
   } catch {
     panel.dataset.connection = 'offline'
-    if (!panel.innerHTML) panel.innerHTML = '<div class="prototype-offline">Prototype service offline — start the Express server to enable live hardware/safety state.</div>'
+    setAutonomySafetyGate({ allowed: false, reason: 'PROTOTYPE SAFETY SERVICE OFFLINE' })
+    if (!panel.innerHTML) panel.innerHTML = '<div class="prototype-offline">Prototype service offline — autonomy motion is safety-locked until the safety service returns.</div>'
   }
 }
 
