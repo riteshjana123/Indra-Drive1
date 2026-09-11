@@ -1,8 +1,8 @@
 const fallbackState = {
   running: true,
   speedMultiplier: 1,
-  scenario: 'Pedestrian crossing',
-  telemetry: { speed: 38, targetSpeed: 22, acceleration: -1.8, steering: -6.4, ttc: 1.6, collisionProbability: 68 },
+  scenario: 'Straight road',
+  telemetry: { speed: 38, targetSpeed: 38, acceleration: 0, steering: 0, ttc: 8, collisionProbability: 0 },
 }
 
 async function request(path, options) {
