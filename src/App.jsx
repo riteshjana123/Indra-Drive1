@@ -14,14 +14,6 @@ const obstacleTypes = [
   { id: 'hazard', label: 'Hazard object', tone: 'yellow' },
 ]
 
-const obstacleDefaults = {
-  pedestrian: { x: 330, y: 170 },
-  bike: { x: 435, y: 245 },
-  car: { x: 460, y: 360 },
-  pothole: { x: 300, y: 420 },
-  hazard: { x: 420, y: 125 },
-}
-
 function Pill({ children, tone = 'green' }) { return <span className={`pill pill-${tone}`}><i />{children}</span> }
 function Title({ eyebrow, title, action }) { return <div className="panel-title"><div><span className="eyebrow">{eyebrow}</span><h2>{title}</h2></div>{action && <span className="panel-action">{action}</span>}</div> }
 
@@ -46,13 +38,7 @@ function Controls({ running, setRunning, scenario, setScenario, speed, setSpeed,
       <div className="obstacle-palette-head"><div><span className="eyebrow">Environment editor</span><h3>Obstacle</h3></div><span className="drag-hint">DRAG → ROAD</span></div>
       <p className="palette-copy">Select an object below, then drag it onto the road.</p>
       <div className="obstacle-list">
-        {obstacleTypes.map((item) => <div
-          key={item.id}
-          className={`obstacle-item obstacle-${item.tone}`}
-          draggable
-          onDragStart={(event) => event.dataTransfer.setData('obstacleType', item.id)}
-          title={`Drag ${item.label} onto the road`}
-        ><div className="obstacle-icon-wrap"><ObstacleIcon type={item.id} small /></div><div><strong>{item.label}</strong><span>Drag to place</span></div><b>⋮⋮</b></div>)}
+        {obstacleTypes.map((item) => <div key={item.id} className={`obstacle-item obstacle-${item.tone}`} draggable onDragStart={(event) => event.dataTransfer.setData('obstacleType', item.id)} title={`Drag ${item.label} onto the road`}><div className="obstacle-icon-wrap"><ObstacleIcon type={item.id} small /></div><div><strong>{item.label}</strong><span>Drag to place</span></div><b>⋮⋮</b></div>)}
       </div>
       <div className="palette-note">Double-click a placed object to remove it.</div>
     </div>
@@ -70,11 +56,12 @@ function RoadObject({ object, onRemove }) {
   </g>
 }
 
-function RoadCanvas({ telemetry, obstacles, setObstacles }) {
+function RoadCanvas({ running, telemetry, obstacles, setObstacles }) {
   const sceneRef = useRef(null)
   const [egoY, setEgoY] = useState(455)
 
   useEffect(() => {
+    if (!running) return undefined
     let frame = 0
     let last = performance.now()
     const tick = (now) => {
@@ -85,7 +72,7 @@ function RoadCanvas({ telemetry, obstacles, setObstacles }) {
     }
     frame = window.requestAnimationFrame(tick)
     return () => window.cancelAnimationFrame(frame)
-  }, [telemetry.speed])
+  }, [running, telemetry.speed])
 
   const dropObstacle = (event) => {
     event.preventDefault()
@@ -134,14 +121,14 @@ function App() {
   const [scenario, setScenario] = useState(scenarios[0])
   const [speed, setSpeed] = useState('1')
   const [telemetry, setTelemetry] = useState(initialTelemetry)
-  const [obstacles, setObstacles] = useState(obstacleTypes.length ? [] : [])
+  const [obstacles, setObstacles] = useState([])
 
   useEffect(() => { getSimulationState().then((state) => { setRunning(state.running); setScenario(state.scenario); setSpeed(String(state.speedMultiplier)); if (state.telemetry) setTelemetry(state.telemetry) }) }, [])
   const decision = useMemo(() => obstacles.length ? `INDRA is tracking ${obstacles.length} user-placed obstacle${obstacles.length > 1 ? 's' : ''} while keeping the ego vehicle moving through the center lane.` : 'Clear straight road detected. INDRA is maintaining a centered path with smooth, stable control.', [obstacles.length])
   const syncControl = (control) => { updateSimulationControl(control).then((state) => { if (state.telemetry) setTelemetry(state.telemetry) }) }
   const restart = () => { setTelemetry(initialTelemetry); setRunning(true); setScenario(scenarios[0]); setSpeed('1'); setObstacles([]); restartSimulation().then((state) => { if (state.telemetry) setTelemetry(state.telemetry) }) }
   return <main className="app-shell"><header className="app-header"><div className="brand-lockup"><img className="brand-mark" src={logo} alt="INDRA-DRIVE logo" /><div><h1>INDRA-<b>DRIVE</b></h1><p>Predictive Risk-Adaptive Path Planning <span>/</span> Unstructured Indian Roads</p></div></div><div className="header-status"><Pill>SYSTEM STATUS: ACTIVE</Pill><Pill>SIMULATION: {running ? 'RUNNING' : 'PAUSED'}</Pill><Pill tone="blue">MODE: INDRA ADAPTIVE</Pill></div></header>
-    <div className="dashboard-grid"><Controls running={running} setRunning={setRunning} scenario={scenario} setScenario={setScenario} speed={speed} setSpeed={setSpeed} restart={restart} syncControl={syncControl} /><section className="panel twin-panel"><Title eyebrow="Live environment / top-down view" title="Digital twin" action="30 FPS" /><RoadCanvas telemetry={telemetry} obstacles={obstacles} setObstacles={setObstacles} /><div className="twin-insight"><span className="alert-icon clear-icon">{obstacles.length ? '!' : '✓'}</span><div><strong className={obstacles.length ? 'watch-text' : 'clear-text'}>{obstacles.length ? 'OBSTACLES ACTIVE' : 'ROAD CLEAR'}</strong><p>{obstacles.length ? 'User-placed objects are live in the digital twin. Double-click to remove.' : 'No obstacles placed. Ego vehicle is moving continuously in the center lane.'}</p></div><span className="insight-time">{obstacles.length ? `${obstacles.length} ACTIVE` : 'SAFE'}</span></div></section><VehicleStatus telemetry={telemetry} obstacles={obstacles} /></div>
+    <div className="dashboard-grid"><Controls running={running} setRunning={setRunning} scenario={scenario} setScenario={setScenario} speed={speed} setSpeed={setSpeed} restart={restart} syncControl={syncControl} /><section className="panel twin-panel"><Title eyebrow="Live environment / top-down view" title="Digital twin" action="30 FPS" /><RoadCanvas running={running} telemetry={telemetry} obstacles={obstacles} setObstacles={setObstacles} /><div className="twin-insight"><span className="alert-icon clear-icon">{obstacles.length ? '!' : '✓'}</span><div><strong className={obstacles.length ? 'watch-text' : 'clear-text'}>{obstacles.length ? 'OBSTACLES ACTIVE' : 'ROAD CLEAR'}</strong><p>{obstacles.length ? 'User-placed objects are live in the digital twin. Double-click to remove.' : 'No obstacles placed. Ego vehicle is moving continuously in the center lane.'}</p></div><span className="insight-time">{obstacles.length ? `${obstacles.length} ACTIVE` : 'SAFE'}</span></div></section><VehicleStatus telemetry={telemetry} obstacles={obstacles} /></div>
     <div className="lower-grid"><Performance /><section className="panel decision-panel"><Title eyebrow="Why did INDRA act?" title="Explainable decision" action="AUTO-LOGGED" /><div className="decision-copy"><div className="decision-tag"><span>01</span> DECISION TRACE</div><p>{decision}</p><div className="decision-facts"><div><span>PATHS EVALUATED</span><strong>1</strong></div><div><span>RISK REDUCTION</span><strong>{obstacles.length ? '82%' : '100%'}</strong></div><div><span>WEIGHT PROFILE</span><strong>SAFETY <em>70%</em></strong></div></div><div className="action-callout"><span>↳</span><div><small>ACTION</small><strong>{obstacles.length ? 'Monitor obstacles + preserve center lane motion' : 'Maintain center lane + constant speed'}</strong></div></div></div></section></div>
     <footer className="app-footer"><span><b className="live-dot" /> SIMULATION ENGINE READY</span><span>SCENARIO: STRAIGHT ROAD &nbsp;·&nbsp; WEATHER: CLEAR &nbsp;·&nbsp; SEED: IDR-2048</span><strong>SAFETY FIRST <i>◆</i></strong></footer></main>
 }
