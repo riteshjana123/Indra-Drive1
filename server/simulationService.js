@@ -1,17 +1,12 @@
-const scenarios = [
-  'Pedestrian crossing',
-  'Auto suddenly merging',
-  'Pothole ahead',
-  'Dense market traffic',
-]
+const scenarios = ['Straight road']
 
 const initialTelemetry = {
   speed: 38,
-  targetSpeed: 22,
-  acceleration: -1.8,
-  steering: -6.4,
-  ttc: 1.6,
-  collisionProbability: 68,
+  targetSpeed: 38,
+  acceleration: 0,
+  steering: 0,
+  ttc: 8,
+  collisionProbability: 0,
 }
 
 function createSimulationState() {
@@ -19,11 +14,11 @@ function createSimulationState() {
     running: true,
     speedMultiplier: 1,
     scenario: scenarios[0],
-    trafficDensity: 'HIGH',
-    weather: 'RAIN',
-    visibility: 74,
+    trafficDensity: 'LOW',
+    weather: 'CLEAR',
+    visibility: 120,
     telemetry: { ...initialTelemetry },
-    frame: 482,
+    frame: 1,
     updatedAt: new Date().toISOString(),
   }
 }
@@ -34,15 +29,16 @@ export function createSimulationService() {
 
   const tick = () => {
     if (!state.running) return
-    const telemetry = state.telemetry
-    const nextSpeed = Math.max(22, Math.min(39, telemetry.speed + (telemetry.targetSpeed - telemetry.speed) * 0.08))
     state = {
       ...state,
       frame: state.frame + 1,
       telemetry: {
-        ...telemetry,
-        speed: Number(nextSpeed.toFixed(2)),
-        ttc: telemetry.ttc > 2.2 ? 1.4 : Number((telemetry.ttc + 0.04).toFixed(2)),
+        ...state.telemetry,
+        speed: state.telemetry.targetSpeed,
+        acceleration: 0,
+        steering: 0,
+        ttc: 8,
+        collisionProbability: 0,
       },
       updatedAt: new Date().toISOString(),
     }
