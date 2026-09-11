@@ -1,0 +1,65 @@
+{
+  "project": "INDRA-DRIVE",
+  "purpose": "Minimum hardware architecture for a low-speed autonomous research prototype",
+  "power": {
+    "batteryPack": {
+      "required": true,
+      "purpose": "Main traction energy source",
+      "selection": "Choose chemistry, voltage and capacity to match the drive motor and BMS"
+    },
+    "bms": {
+      "required": true,
+      "purpose": "Cell protection, balancing and pack monitoring"
+    },
+    "charger": {
+      "required": true,
+      "purpose": "Dedicated charger matched to the installed battery chemistry and series count",
+      "safety": "Never charge with an incompatible charger; charging must be interlocked with propulsion"
+    },
+    "dcDcConverters": {
+      "required": true,
+      "purpose": "Generate regulated logic and sensor rails from the traction battery"
+    },
+    "mainFuse": {
+      "required": true,
+      "purpose": "Protect the battery and high-current wiring"
+    },
+    "emergencyStop": {
+      "required": true,
+      "purpose": "Remove propulsion enable immediately"
+    }
+  },
+  "compute": [
+    { "name": "Autonomy computer", "required": true, "purpose": "Perception, tracking, risk and planning" },
+    { "name": "Safety MCU", "required": true, "purpose": "Watchdog, emergency-stop monitoring and actuator safety" }
+  ],
+  "sensors": [
+    { "name": "Forward camera", "required": true, "purpose": "Visual perception" },
+    { "name": "LiDAR or depth sensor", "required": true, "purpose": "Obstacle geometry and free-space estimation" },
+    { "name": "IMU", "required": true, "purpose": "Vehicle motion and yaw estimation" },
+    { "name": "Wheel encoders", "required": true, "purpose": "Vehicle speed and odometry" },
+    { "name": "GNSS", "required": false, "purpose": "Position reference for outdoor experiments" },
+    { "name": "Short-range radar or ultrasonic", "required": false, "purpose": "Redundant near-field detection" }
+  ],
+  "actuation": [
+    { "name": "Drive motor", "required": true },
+    { "name": "Motor controller", "required": true, "purpose": "Closed-loop traction control" },
+    { "name": "Steering actuator", "required": true, "purpose": "Continuous steering control" },
+    { "name": "Brake actuator", "required": true, "purpose": "Fail-safe stopping" }
+  ],
+  "communications": [
+    { "name": "CAN bus", "required": true, "purpose": "Robust vehicle-control network" },
+    { "name": "UART/USB", "required": true, "purpose": "Debug and sensor integration" },
+    { "name": "Ethernet/Wi-Fi", "required": false, "purpose": "Development and telemetry" }
+  ],
+  "safety": [
+    "Hardware emergency stop",
+    "Propulsion-enable interlock",
+    "Watchdog timeout",
+    "Brake-on-fault policy",
+    "Charger connected blocks propulsion",
+    "Low-battery propulsion inhibit",
+    "Sensor-health checks",
+    "Manual override for test operation"
+  ]
+}
