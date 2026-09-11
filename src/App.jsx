@@ -121,7 +121,7 @@ function RoadCanvas({ running, speed, selectedObstacleType, setSelectedObstacleT
   const obstaclesRef = useRef(obstacles)
   const speedRef = useRef(speed)
   const egoXRef = useRef(LANE_CENTERS[1])
-  const maneuverRef = useRef({ mode: 'cruise', targetX: LANE_CENTERS[1], reason: 'CENTER LANE' })
+  const maneuverRef = useRef({ mode: 'cruise', targetX: LANE_CENTERS[1], reason: 'CENTER LANE', obstacleId: null })
   const [roadOffset, setRoadOffset] = useState(0)
   const [egoX, setEgoX] = useState(LANE_CENTERS[1])
   const [dragActive, setDragActive] = useState(false)
@@ -140,14 +140,9 @@ function RoadCanvas({ running, speed, selectedObstacleType, setSelectedObstacleT
 
   const chooseAvoidanceLane = (obstacle, movedY) => {
     const currentLane = nearestLane(egoXRef.current)
-    const choices = [LANE_CENTERS[1 - (currentLane === LANE_CENTERS[1] ? 0 : 1)], LANE_CENTERS[0], LANE_CENTERS[2]]
-      .filter((lane, index, list) => list.indexOf(lane) === index)
-      .filter((lane) => lane !== currentLane)
+    const choices = LANE_CENTERS.filter((lane) => lane !== currentLane)
     choices.sort((a, b) => Math.abs(a - egoXRef.current) - Math.abs(b - egoXRef.current))
-    for (const lane of choices) {
-      if (!laneBlocked(lane, movedY, obstacle.id)) return lane
-    }
-    return null
+    return choices.find((lane) => !laneBlocked(lane, movedY, obstacle.id)) ?? null
   }
 
   useEffect(() => {
@@ -196,13 +191,12 @@ function RoadCanvas({ running, speed, selectedObstacleType, setSelectedObstacleT
       }
 
       let currentManeuver = maneuverRef.current
-      const targetGap = Math.abs(currentManeuver.targetX - egoXRef.current)
 
       if (threat && currentSpeed > 0) {
         if (currentManeuver.mode === 'cruise' || currentManeuver.obstacleId !== threat.id) {
           const targetLane = chooseAvoidanceLane(threat, threat.movedY)
           if (targetLane !== null) {
-            const targetIsOvertake = threat.type === 'car' || threat.type === 'bike'
+            const targetIsOvertake = threat.type === 'car'
             setManeuverState({
               mode: targetIsOvertake ? 'overtake' : 'avoid',
               targetX: targetLane,
@@ -212,6 +206,7 @@ function RoadCanvas({ running, speed, selectedObstacleType, setSelectedObstacleT
             currentManeuver = maneuverRef.current
           } else {
             setManeuverState({ mode: 'brake', targetX: egoXRef.current, reason: 'BRAKING — NO SAFE LANE', obstacleId: threat.id })
+            currentManeuver = maneuverRef.current
           }
         }
       } else if (currentManeuver.mode !== 'cruise' && currentManeuver.mode !== 'brake') {
@@ -224,7 +219,9 @@ function RoadCanvas({ running, speed, selectedObstacleType, setSelectedObstacleT
       }
 
       if (currentManeuver.mode === 'brake') {
-        setTelemetry((current) => ({ ...current, acceleration: currentSpeed > 0 ? -3.2 : 0, steering: 0, ttc: Math.max(0.1, (EGO_Y - (threat?.movedY ?? EGO_Y)) / Math.max(1, currentSpeed * 2.4)) }))
+        const distance = threat ? Math.max(0, EGO_Y - threat.movedY) : 0
+        const ttc = currentSpeed > 0 ? distance / pixelsPerSecond : 8
+        setTelemetry((current) => ({ ...current, speed: currentSpeed, targetSpeed: currentSpeed, acceleration: currentSpeed > 0 ? -3.2 : 0, steering: 0, ttc: Math.max(0.1, Math.min(8, ttc)), collisionProbability: Math.min(99, 100 - ttc * 20) }))
       } else {
         const direction = currentManeuver.targetX - egoXRef.current
         const maxStep = (delta / 1000) * LANE_SHIFT_SPEED
@@ -289,7 +286,7 @@ function RoadCanvas({ running, speed, selectedObstacleType, setSelectedObstacleT
         <rect x={ROAD_LEFT} y="0" width={ROAD_RIGHT - ROAD_LEFT} height="560" fill="url(#road)" className="road-surface" />
         <rect x={ROAD_LEFT - 2} y="0" width="2" height="560" className="road-edge" /><rect x={ROAD_RIGHT} y="0" width="2" height="560" className="road-edge" />
         {environmentCopies.map((base, index) => <g key={`veg-${index}`} className="moving-environment" transform={`translate(0 ${base + treeOffset})`}><Vegetation /></g>)}
-        {stripeY.map((y, index) => <rect key={`center-${index}`} x="303" y={y} width="3" height="42" rx="1.5" className="road-lane-divider" /><rect key={`center-right-${index}`} x="454" y={y} width="3" height="42" rx="1.5" className="road-lane-divider" />)}
+        {stripeY.map((y, index) => <g key={`lane-${index}`}><rect x="303" y={y} width="3" height="42" rx="1.5" className="road-lane-divider" /><rect x="454" y={y} width="3" height="42" rx="1.5" className="road-lane-divider" /></g>)}
         {obstacles.map((object) => { const movedY = Number(object.worldY) + roadOffset; return movedY > -50 && movedY < ROAD_BOTTOM + 48 ? <RoadObject key={object.id} object={{ ...object, y: movedY }} crashed={crashed} onRemove={(id) => setObstacles((current) => current.filter((item) => item.id !== id))} /> : null })}
         <EgoVehicle egoX={egoX} />
         {crashed && <g className="collision-marker" transform={`translate(${egoX} ${EGO_Y})`}><circle r="34" /><path d="M-9-9l18 18m0-18-18 18" /></g>}
@@ -304,7 +301,7 @@ function RoadCanvas({ running, speed, selectedObstacleType, setSelectedObstacleT
 
 function VehicleStatus({ telemetry, obstacles, crashed, maneuver }) {
   const items = [['CURRENT SPEED', `${Math.round(telemetry.speed)} km/h`, 'neutral'], ['TARGET SPEED', `${Math.round(telemetry.targetSpeed)} km/h`, 'teal'], ['ACCELERATION', `${telemetry.acceleration.toFixed(1)} m/s²`, 'amber'], ['STEERING ANGLE', `${Math.round(telemetry.steering)}°`, 'neutral']]
-  return <aside className="panel status-panel"><Title eyebrow="Telemetry" title="Vehicle status" action="EGO-01" /><div className="telemetry-grid">{items.map(([label, value, tone]) => <div className="telemetry-card" key={label}><span>{label}</span><strong className={`value-${tone}`}>{value}</strong></div>)}</div><div className="status-row"><span>Brake status</span><strong className={`brake-status ${crashed || maneuver.mode === 'brake' ? 'brake-danger' : 'clear-brake'}`}><i /> {crashed ? 'LOCKED' : maneuver.mode === 'brake' ? 'APPLIED' : 'RELEASED'}</strong></div><div className="risk-readout"><div><span>TIME TO COLLISION</span><strong className={crashed ? 'danger-value' : ''}>{crashed ? '0.0' : telemetry.ttc.toFixed(1)}<small> sec</small></strong></div><div><span>COLLISION PROBABILITY</span><strong className={crashed ? 'danger-value' : ''}>{crashed ? '100' : Math.round(telemetry.collisionProbability)}<small>%</small></strong></div></div><div className="risk-meter"><span className={crashed ? 'risk-full' : ''} style={{ width: `${crashed ? 100 : telemetry.collisionProbability}%` }} /></div><div className="current-risk"><span>Current risk</span><strong className={crashed ? 'collision-risk' : maneuver.mode === 'cruise' ? 'clear-risk' : 'watch-risk'}><i /> {crashed ? 'COLLISION' : maneuver.mode === 'brake' ? 'HIGH RISK' : maneuver.mode === 'overtake' ? 'OVERTAKING' : maneuver.mode === 'avoid' || maneuver.mode === 'return' ? 'MANEUVER' : obstacles.length ? 'MONITOR' : 'CLEAR'}</strong></div><div className="selected-path"><span>Selected path</span><strong>{maneuver.mode === 'overtake' ? 'Passing lane' : maneuver.mode === 'avoid' ? 'Avoidance lane' : 'Center lane'} <em>INDRA</em></strong></div><div className="status-obstacles"><span>Active obstacles</span><strong>{obstacles.length}</strong></div></aside>
+  return <aside className="panel status-panel"><Title eyebrow="Telemetry" title="Vehicle status" action="EGO-01" /><div className="telemetry-grid">{items.map(([label, value, tone]) => <div className="telemetry-card" key={label}><span>{label}</span><strong className={`value-${tone}`}>{value}</strong></div>)}</div><div className="status-row"><span>Brake status</span><strong className={`brake-status ${crashed || maneuver.mode === 'brake' ? 'brake-danger' : 'clear-brake'}`}><i /> {crashed ? 'LOCKED' : maneuver.mode === 'brake' ? 'APPLIED' : 'RELEASED'}</strong></div><div className="risk-readout"><div><span>TIME TO COLLISION</span><strong className={crashed ? 'danger-value' : ''}>{crashed ? '0.0' : telemetry.ttc.toFixed(1)}<small> sec</small></strong></div><div><span>COLLISION PROBABILITY</span><strong className={crashed ? 'danger-value' : ''}>{crashed ? '100' : Math.round(telemetry.collisionProbability)}<small>%</small></strong></div></div><div className="risk-meter"><span className={crashed ? 'risk-full' : ''} style={{ width: `${crashed ? 100 : telemetry.collisionProbability}%` }} /></div><div className="current-risk"><span>Current risk</span><strong className={crashed ? 'collision-risk' : maneuver.mode === 'cruise' ? 'clear-risk' : 'watch-risk'}><i /> {crashed ? 'COLLISION' : maneuver.mode === 'brake' ? 'HIGH RISK' : maneuver.mode === 'overtake' ? 'OVERTAKING' : maneuver.mode === 'avoid' || maneuver.mode === 'return' ? 'MANEUVER' : obstacles.length ? 'MONITOR' : 'CLEAR'}</strong></div><div className="selected-path"><span>Selected path</span><strong>{maneuver.mode === 'overtake' ? 'Passing lane' : maneuver.mode === 'avoid' ? 'Avoidance lane' : maneuver.mode === 'return' ? 'Returning to center' : 'Center lane'} <em>INDRA</em></strong></div><div className="status-obstacles"><span>Active obstacles</span><strong>{obstacles.length}</strong></div></aside>
 }
 
 function Performance({ speed, crashed }) {
@@ -333,14 +330,10 @@ function App() {
     }).catch(() => undefined)
   }, [])
 
-  useEffect(() => {
-    setTelemetry((current) => ({ ...current, speed, targetSpeed: speed }))
-  }, [speed])
+  useEffect(() => { setTelemetry((current) => ({ ...current, speed, targetSpeed: speed })) }, [speed])
 
   const syncControl = (control) => {
-    updateSimulationControl(control).then((state) => {
-      if (state.telemetry) setTelemetry((current) => ({ ...current, ...state.telemetry }))
-    }).catch(() => undefined)
+    updateSimulationControl(control).then((state) => { if (state.telemetry) setTelemetry((current) => ({ ...current, ...state.telemetry })) }).catch(() => undefined)
   }
 
   const restart = () => {
@@ -358,15 +351,15 @@ function App() {
   const decision = useMemo(() => {
     if (crashed) return 'Collision detected. INDRA stopped the vehicle because no safe maneuver remained before impact.'
     if (maneuver.mode === 'overtake') return 'A slower vehicle entered the ego lane. INDRA selected a clear adjacent lane, changed lane smoothly, and is overtaking before returning to the center path.'
-    if (maneuver.mode === 'avoid') return 'An obstacle entered the planned lane. INDRA selected the nearest clear lane and is steering around it while maintaining forward motion.'
+    if (maneuver.mode === 'avoid') return 'An obstacle entered the planned lane. INDRA selected the nearest clear lane and is steering around it while maintaining safe clearance.'
     if (maneuver.mode === 'return') return 'The hazard has been passed. INDRA is smoothly returning the vehicle to the center lane.'
     if (maneuver.mode === 'brake') return 'The road is blocked and adjacent lanes are occupied. INDRA is applying braking instead of forcing an unsafe lane change.'
-    return 'Clear straight road detected. INDRA is cruising in the center lane with the fixed camera following the road environment.'
+    return 'Clear straight road detected. INDRA is cruising in the center lane with the camera fixed to the vehicle.'
   }, [crashed, maneuver.mode])
 
   return <main className="app-shell">
     <header className="app-header"><div className="brand-lockup"><img className="brand-mark" src={logo} alt="INDRA-DRIVE logo" /><div><h1>INDRA-<b>DRIVE</b></h1><p>Predictive Risk-Adaptive Path Planning <span>/</span> Realistic Road Digital Twin</p></div></div><div className="header-status"><Pill>SYSTEM STATUS: ACTIVE</Pill><Pill>SIMULATION: {crashed ? 'STOPPED' : running ? 'RUNNING' : 'PAUSED'}</Pill><Pill tone="blue">MODE: INDRA ADAPTIVE</Pill></div></header>
-    <div className="dashboard-grid"><Controls running={running && !crashed} setRunning={(value) => { if (!crashed) setRunning(value) }} scenario={scenario} setScenario={setScenario} speed={speed} setSpeed={setSpeed} restart={restart} syncControl={syncControl} selectedObstacleType={selectedObstacleType} setSelectedObstacleType={setSelectedObstacleType} /><section className="panel twin-panel"><Title eyebrow="Live environment / top-down view" title="Digital twin" action="30 FPS" /><RoadCanvas running={running && speed > 0} speed={speed} selectedObstacleType={selectedObstacleType} setSelectedObstacleType={setSelectedObstacleType} obstacles={obstacles} setObstacles={setObstacles} crashed={crashed} setCrashed={setCrashed} setTelemetry={setTelemetry} maneuver={maneuver} setManeuver={setManeuver} /><div className="twin-insight"><span className={`alert-icon ${crashed ? 'collision-icon' : maneuver.mode === 'cruise' ? 'clear-icon' : 'watch-icon'}`}>{crashed ? '!' : maneuver.mode === 'cruise' ? '✓' : '!'}</span><div><strong className={crashed ? 'collision-text' : maneuver.mode === 'cruise' ? 'clear-text' : 'watch-text'}>{crashed ? 'COLLISION DETECTED' : maneuver.mode === 'overtake' ? 'OVERTAKING' : maneuver.mode === 'avoid' ? 'OBSTACLE AVOIDANCE' : maneuver.mode === 'return' ? 'RETURNING TO LANE' : maneuver.mode === 'brake' ? 'BRAKING' : 'ROAD CLEAR'}</strong><p>{crashed ? 'Simulation stopped at impact. Restart to continue.' : maneuver.mode === 'overtake' ? 'EGO-01 is changing into a clear adjacent lane to pass the vehicle ahead, then will merge back.' : maneuver.mode === 'avoid' ? 'EGO-01 is moving around the blocked lane while keeping a safe clearance from the obstacle.' : maneuver.mode === 'return' ? 'The obstacle has been passed. EGO-01 is smoothly centering the vehicle again.' : maneuver.mode === 'brake' ? 'No safe lane is available. EGO-01 is reducing speed rather than forcing an unsafe maneuver.' : 'EGO-01 is cruising in the center lane while the road environment moves toward it.'}</p></div><span className="insight-time">{crashed ? 'STOP' : maneuver.mode === 'cruise' ? 'SAFE' : 'ACTIVE'}</span></div></section><VehicleStatus telemetry={telemetry} obstacles={obstacles} crashed={crashed} maneuver={maneuver} /></div>
+    <div className="dashboard-grid"><Controls running={running && !crashed} setRunning={(value) => { if (!crashed) setRunning(value) }} scenario={scenario} setScenario={setScenario} speed={speed} setSpeed={setSpeed} restart={restart} syncControl={syncControl} selectedObstacleType={selectedObstacleType} setSelectedObstacleType={setSelectedObstacleType} /><section className="panel twin-panel"><Title eyebrow="Live environment / top-down view" title="Digital twin" action="30 FPS" /><RoadCanvas running={running && speed > 0} speed={speed} selectedObstacleType={selectedObstacleType} setSelectedObstacleType={setSelectedObstacleType} obstacles={obstacles} setObstacles={setObstacles} crashed={crashed} setCrashed={setCrashed} setTelemetry={setTelemetry} maneuver={maneuver} setManeuver={setManeuver} /><div className="twin-insight"><span className={`alert-icon ${crashed ? 'collision-icon' : maneuver.mode === 'cruise' ? 'clear-icon' : 'watch-icon'}`}>{crashed ? '!' : maneuver.mode === 'cruise' ? '✓' : '!'}</span><div><strong className={crashed ? 'collision-text' : maneuver.mode === 'cruise' ? 'clear-text' : 'watch-text'}>{crashed ? 'COLLISION DETECTED' : maneuver.mode === 'overtake' ? 'OVERTAKING' : maneuver.mode === 'avoid' ? 'OBSTACLE AVOIDANCE' : maneuver.mode === 'return' ? 'RETURNING TO LANE' : maneuver.mode === 'brake' ? 'BRAKING' : 'ROAD CLEAR'}</strong><p>{crashed ? 'Simulation stopped at impact. Restart to continue.' : maneuver.mode === 'overtake' ? 'EGO-01 is changing into a clear adjacent lane to pass the vehicle ahead, then will merge back.' : maneuver.mode === 'avoid' ? 'EGO-01 is moving around the blocked lane while keeping safe clearance from the obstacle.' : maneuver.mode === 'return' ? 'The obstacle has been passed. EGO-01 is smoothly centering the vehicle again.' : maneuver.mode === 'brake' ? 'No safe lane is available. EGO-01 is reducing speed rather than forcing an unsafe maneuver.' : 'EGO-01 is cruising in the center lane while the road environment moves toward it.'}</p></div><span className="insight-time">{crashed ? 'STOP' : maneuver.mode === 'cruise' ? 'SAFE' : 'ACTIVE'}</span></div></section><VehicleStatus telemetry={telemetry} obstacles={obstacles} crashed={crashed} maneuver={maneuver} /></div>
     <div className="lower-grid"><Performance speed={speed} crashed={crashed} /><section className="panel decision-panel"><Title eyebrow="Why did INDRA act?" title="Explainable decision" action="AUTO-LOGGED" /><div className="decision-copy"><div className="decision-tag"><span>01</span> DECISION TRACE</div><p>{decision}</p><div className="decision-facts"><div><span>PATHS EVALUATED</span><strong>{maneuver.mode === 'cruise' ? '1' : maneuver.mode === 'brake' ? '0' : '3'}</strong></div><div><span>RISK REDUCTION</span><strong>{crashed ? '0%' : maneuver.mode === 'brake' ? '35%' : '100%'}</strong></div><div><span>WEIGHT PROFILE</span><strong>SAFETY <em>70%</em></strong></div></div><div className="action-callout"><span>↳</span><div><small>ACTION</small><strong>{crashed ? 'Stop vehicle + log collision' : maneuver.mode === 'overtake' ? 'Change lane + overtake + return to center' : maneuver.mode === 'avoid' ? 'Change lane + maintain clearance' : maneuver.mode === 'return' ? 'Merge back to center lane' : maneuver.mode === 'brake' ? 'Brake + wait for safe gap' : `Cruise at ${Math.round(speed)} km/h`}</strong></div></div></div></section></div>
     <footer className="app-footer"><span><b className="live-dot" /> SIMULATION ENGINE READY</span><span>SCENARIO: STRAIGHT ROAD &nbsp;·&nbsp; WEATHER: CLEAR &nbsp;·&nbsp; SPEED LIMIT: 100 km/h</span><strong>SAFETY FIRST <i>◆</i></strong></footer>
   </main>
