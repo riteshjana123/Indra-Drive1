@@ -196,7 +196,7 @@ function RoadCanvas({ running, speed, selectedObstacleType, setSelectedObstacleT
         {stripeY.map((y, index) => <rect key={`center-${index}`} x="378" y={y} width="4" height="42" rx="2" className="road-centerline moving-line" />)}
         {obstacles.map((object) => { const movedY = Number(object.worldY) + roadOffset; return movedY > -50 && movedY < ROAD_BOTTOM + 48 ? <RoadObject key={object.id} object={{ ...object, y: movedY }} crashed={crashed} onRemove={(id) => setObstacles((current) => current.filter((item) => item.id !== id))} /> : null })}
         <EgoVehicle />
-        {crashed && <g className="collision-marker" transform={`translate(${EGO_X} ${EGO_Y})"><circle r="34" /><path d="M-9-9l18 18m0-18-18 18" /></g>}
+        {crashed && <g className="collision-marker" transform={`translate(${EGO_X} ${EGO_Y})`}><circle r="34" /><path d="M-9-9l18 18m0-18-18 18" /></g>}
       </svg>
       <div className="drop-overlay"><span>{crashed ? 'SIMULATION STOPPED — RESTART TO CONTINUE' : selectedObstacleType ? 'CLICK ANY POINT ON THE ROAD' : 'DROP OBSTACLE ANYWHERE ON ROAD'}</span></div>
       {dragActive && !crashed && <div className="drag-ready"><span>RELEASE TO PLACE</span></div>}
