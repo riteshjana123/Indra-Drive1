@@ -1,9 +1,11 @@
 import cors from 'cors'
 import express from 'express'
 import { createSimulationService } from './simulationService.js'
+import { createPrototypeService } from './prototypeService.js'
 
 const app = express()
 const simulation = createSimulationService()
+const prototype = createPrototypeService()
 const port = Number(process.env.PORT || 3001)
 
 app.use(cors())
@@ -22,12 +24,24 @@ app.get('/api/simulation/state', (_request, response) => {
 })
 
 app.post('/api/simulation/control', (request, response) => {
-  const { running, speedMultiplier, scenario } = request.body || {}
-  response.json(simulation.setControl({ running, speedMultiplier, scenario }))
+  const { running, speedMultiplier, vehicleSpeed, scenario } = request.body || {}
+  response.json(simulation.setControl({ running, speedMultiplier, vehicleSpeed, scenario }))
 })
 
 app.post('/api/simulation/restart', (_request, response) => {
   response.json(simulation.restart())
+})
+
+app.get('/api/prototype/state', (_request, response) => {
+  response.json(prototype.getState())
+})
+
+app.post('/api/prototype/control', (request, response) => {
+  response.json(prototype.control(request.body || {}))
+})
+
+app.post('/api/prototype/heartbeat', (_request, response) => {
+  response.json(prototype.heartbeat())
 })
 
 const server = app.listen(port, () => {
@@ -36,6 +50,7 @@ const server = app.listen(port, () => {
 
 function shutdown() {
   simulation.stop()
+  prototype.stop()
   server.close(() => process.exit(0))
 }
 
