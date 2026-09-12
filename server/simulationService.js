@@ -1,4 +1,4 @@
-const scenarios = ['Straight road']
+const scenarios = ['Straight road', 'Curved road', 'Two-way road']
 
 const initialTelemetry = {
   speed: 38,
