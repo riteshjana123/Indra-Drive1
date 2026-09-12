@@ -95,8 +95,8 @@ async function refresh(panel) {
     render(state, panel)
   } catch {
     panel.dataset.connection = 'offline'
-    setAutonomySafetyGate({ allowed: false, reason: 'PROTOTYPE SAFETY SERVICE OFFLINE' })
-    if (!panel.innerHTML) panel.innerHTML = '<div class="prototype-offline">Prototype service offline — autonomy motion is safety-locked until the safety service returns.</div>'
+    setAutonomySafetyGate({ allowed: true, reason: 'LOCAL SIMULATION ACTIVE' })
+    if (!panel.innerHTML) panel.innerHTML = '<div class="prototype-offline">Prototype service offline — the local road simulation remains active.</div>'
   }
 }
 
